@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+{% block title %}All Categories - Flipkart{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/categories.css') }}">
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;gap:20px;padding:20px;max-width:1400px;margin:0 auto;">
+    <!-- Sidebar Filters -->
+    <aside style="min-width:200px;background:white;border-radius:10px;padding:16px;height:fit-content;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        <h3 style="margin:0 0 14px;font-size:16px;border-bottom:1px solid #eee;padding-bottom:10px;">Filters</h3>
+        <div>
+            <p style="font-size:13px;font-weight:600;color:#444;margin-bottom:8px;">Category</p>
+            <div id="categoryFilters">
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:6px;cursor:pointer;">
+                    <input type="radio" name="cat" value="" checked onchange="filterProducts()"> All
+                </label>
+            </div>
+        </div>
+        <div style="margin-top:16px;">
+            <p style="font-size:13px;font-weight:600;color:#444;margin-bottom:8px;">Price Range</p>
+            <select id="priceFilter" onchange="filterProducts()" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:13px;">
+                <option value="">All Prices</option>
+                <option value="0-500">Under ₹500</option>
+                <option value="500-1000">₹500 – ₹1,000</option>
+                <option value="1000-5000">₹1,000 – ₹5,000</option>
+                <option value="5000-999999">Above ₹5,000</option>
+            </select>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main style="flex:1;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h1 id="pageTitle" style="margin:0;font-size:22px;">All Categories</h1>
+            <span id="resultCount" style="font-size:13px;color:#666;"></span>
+        </div>
+        <div id="searchInfo" style="display:none;background:#e3f2fd;padding:10px 16px;border-radius:8px;margin-bottom:14px;font-size:14px;">
+            Showing results for: <strong id="searchQuery"></strong>
+            <a href="/categories" style="margin-left:12px;color:#2874f0;">Clear search</a>
+        </div>
+        <div class="products-container" id="productsContainer">
+            <div style="text-align:center;padding:60px;width:100%;color:#666;">Loading products...</div>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allProducts = [];
+let wishlistIds = new Set();
+
+async function init() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const searchQ = urlParams.get('q');
+    const catParam = urlParams.get('cat');
+
+    // Load categories for sidebar
+    const catRes = await fetch('/api/categories');
+    const categories = await catRes.json();
+    const filtersDiv = document.getElementById('categoryFilters');
+    categories.forEach(cat => {
+        const label = document.createElement('label');
+        label.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:6px;cursor:pointer;';
+        label.innerHTML = `<input type="radio" name="cat" value="${cat}" onchange="filterProducts()"> ${cat}`;
+        filtersDiv.appendChild(label);
+    });
+
+    if (catParam) {
+        const radio = filtersDiv.querySelector(`input[value="${catParam}"]`);
+        if (radio) radio.checked = true;
+    }
+
+    if (searchQ) {
+        document.getElementById('searchInfo').style.display = 'block';
+        document.getElementById('searchQuery').textContent = searchQ;
+        document.getElementById('searchInput').value = searchQ;
+        document.getElementById('pageTitle').textContent = 'Search Results';
+        showLoadingState();
+        try {
+            const res = await fetch(`/api/search?q=${encodeURIComponent(searchQ)}`);
+            if (!res.ok) throw new Error('Search failed');
+            allProducts = await res.json();
+        } catch(e) {
+            allProducts = [];
+        }
+    } else {
+        showLoadingState();
+        const res = await fetch('/api/products');
+        allProducts = await res.json();
+    }
+
+    // Load wishlist ids if logged in
+    if (currentUser) {
+        const wRes = await fetch('/api/wishlist/ids');
+        const ids = await wRes.json();
+        wishlistIds = new Set(ids);
+    }
+
+    filterProducts();
+}
+
+function filterProducts() {
+    const selectedCat = document.querySelector('input[name="cat"]:checked')?.value || '';
+    const priceRange = document.getElementById('priceFilter').value;
+
+    let filtered = allProducts;
+
+    if (selectedCat) {
+        filtered = filtered.filter(p => p.category === selectedCat);
+    }
+
+    if (priceRange) {
+        const [min, max] = priceRange.split('-').map(Number);
+        filtered = filtered.filter(p => p.price >= min && p.price <= max);
+    }
+
+    renderProducts(filtered);
+}
+
+function renderProducts(products) {
+    const container = document.getElementById('productsContainer');
+    document.getElementById('resultCount').textContent = `${products.length} products found`;
+
+    if (products.length === 0) {
+        const searchQ = new URLSearchParams(window.location.search).get('q');
+        const msg = searchQ
+            ? `No products found for "<strong>${searchQ}</strong>". Try a broader term or <a href="/categories" style="color:#2874f0;">clear the search</a>.`
+            : 'No products match the selected filters. Try changing the category or price range.';
+        container.innerHTML = `<div style="text-align:center;padding:80px;width:100%;color:#999;font-size:15px;line-height:1.8;">${msg}</div>`;
+        return;
+    }
+
+    container.innerHTML = products.map(p => {
+        const inWishlist = wishlistIds.has(p.id);
+        return `
+        <div class="product-card" data-id="${p.id}">
+            <div style="position:relative;">
+                <img src="/static/images/${p.image}" alt="${p.name}" class="product-image"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div style="display:none;width:150px;height:150px;background:#f5f5f5;border-radius:6px;align-items:center;justify-content:center;color:#ccc;font-size:12px;margin-bottom:10px;">
+                    <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                </div>
+                <button onclick="toggleWishlist(${p.id}, '${p.name.replace(/'/g,"\\'")}', this)"
+                    style="position:absolute;top:6px;right:6px;background:white;border:none;cursor:pointer;font-size:18px;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.2);">
+                    ${inWishlist ? '❤️' : '♡'}
+                </button>
+            </div>
+            <h3 style="font-size:14px;margin:8px 0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.name}">${p.name}</h3>
+            <p style="color:#2874f0;font-weight:bold;margin:0 0 8px;">₹${Number(p.price).toLocaleString('en-IN')}</p>
+            <p style="font-size:11px;color:#999;margin:0 0 8px;">${p.category}</p>
+            <div class="cart-controls" style="flex-direction:column;gap:6px;">
+                <div style="display:flex;gap:6px;justify-content:center;">
+                    <button onclick="changeQty(${p.id}, -1)" class="qty-btn" style="width:32px;">−</button>
+                    <span id="qty-${p.id}" style="min-width:20px;text-align:center;line-height:32px;font-weight:bold;">1</span>
+                    <button onclick="changeQty(${p.id}, 1)" class="qty-btn" style="width:32px;">+</button>
+                </div>
+                <button onclick="addToCart(${p.id}, '${p.name.replace(/'/g,"\\'")}', ${p.price})" style="width:100%;background:#2874f0;">Add to Cart</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+const quantities = {};
+
+function showLoadingState() {
+    const container = document.getElementById('productsContainer');
+    container.innerHTML = `
+        <div style="text-align:center;padding:80px;width:100%;color:#888;">
+            <div class="search-spinner"></div>
+            <p style="margin-top:14px;font-size:15px;">Loading products…</p>
+        </div>`;
+}
+
+function changeQty(id, delta) {
+    quantities[id] = Math.max(1, (quantities[id] || 1) + delta);
+    document.getElementById(`qty-${id}`).textContent = quantities[id];
+}
+
+async function addToCart(productId, name, price) {
+    if (!currentUser) { showToast('Please login to add to cart'); setTimeout(() => window.location.href='/login', 1200); return; }
+    const qty = quantities[productId] || 1;
+    const res = await fetch('/api/cart/add', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({product_id: productId, quantity: qty}) });
+    const data = await res.json();
+    showToast(data.message || data.error);
+    if (data.success) { quantities[productId] = 1; document.getElementById(`qty-${productId}`).textContent = 1; }
+    updateCartBadge();
+}
+
+async function toggleWishlist(productId, name, btn) {
+    if (!currentUser) { showToast('Please login to use wishlist'); setTimeout(() => window.location.href='/login', 1200); return; }
+    if (wishlistIds.has(productId)) {
+        await fetch('/api/wishlist/remove', { method:'DELETE', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({product_id: productId}) });
+        wishlistIds.delete(productId);
+        btn.textContent = '♡';
+        showToast(`Removed from wishlist`);
+    } else {
+        await fetch('/api/wishlist/add', { method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({product_id: productId}) });
+        wishlistIds.add(productId);
+        btn.textContent = '❤️';
+        showToast(`${name} added to wishlist`);
+    }
+    updateWishlistBadge();
+}
+
+// Wait for auth to load then init
+document.addEventListener('DOMContentLoaded', () => setTimeout(init, 200));
+</script>
+<style>
+.qty-btn { background:#e0e0e0!important; color:#333!important; font-size:16px!important; padding:4px!important; }
+.qty-btn:hover { background:#ccc!important; }
+
+/* Loading spinner */
+.search-spinner {
+    width: 36px; height: 36px;
+    border: 3px solid #e0e0e0;
+    border-top-color: #2874f0;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Product card: richer shadow + hover lift */
+.products-container .product-card {
+    transition: transform 0.22s ease, box-shadow 0.22s ease;
+    box-shadow: 0 2px 8px rgba(40, 116, 240, 0.08), 0 1px 3px rgba(0,0,0,0.07);
+    border-radius: 12px;
+    border: 1px solid #e8edf5;
+}
+.products-container .product-card:hover {
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: 0 10px 28px rgba(40, 116, 240, 0.15), 0 4px 10px rgba(0,0,0,0.08);
+}
+
+/* Add-to-cart button polish */
+.products-container .product-card button[style*="background:#2874f0"] {
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.2px;
+    transition: background 0.2s ease, transform 0.15s ease;
+}
+.products-container .product-card button[style*="background:#2874f0"]:hover {
+    background: #1a5ed9 !important;
+    transform: translateY(-1px);
+}
+
+/* Sidebar filter card */
+aside {
+    border: 1px solid #e8edf5;
+    transition: box-shadow 0.2s;
+}
+aside:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1) !important; }
+
+/* Search info banner */
+#searchInfo {
+    border-left: 4px solid #2874f0;
+    background: linear-gradient(90deg, #e8f0fe 0%, #f5f8ff 100%) !important;
+    border-radius: 0 8px 8px 0 !important;
+}
+</style>
+{% endblock %}

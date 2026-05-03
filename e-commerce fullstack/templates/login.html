@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Login - Flipkart{% endblock %}
+
+{% block content %}
+<div class="login-container" style="margin-top:40px;">
+    <!-- Tab Switcher -->
+    <div style="display:flex;margin-bottom:20px;border-bottom:2px solid #e0e0e0;">
+        <button id="loginTab" onclick="switchTab('login')"
+            style="flex:1;padding:12px;border:none;background:none;font-size:16px;font-weight:bold;cursor:pointer;color:#2874f0;border-bottom:3px solid #2874f0;">
+            Login
+        </button>
+        <button id="signupTab" onclick="switchTab('signup')"
+            style="flex:1;padding:12px;border:none;background:none;font-size:16px;cursor:pointer;color:#666;">
+            Sign Up
+        </button>
+    </div>
+
+    <!-- Login Form -->
+    <div id="loginForm">
+        <h2 style="text-align:center;margin-bottom:20px;">Welcome Back!</h2>
+        <div id="loginError" style="display:none;background:#ffebee;color:#c62828;padding:10px;border-radius:6px;margin-bottom:12px;font-size:14px;"></div>
+        <label for="loginEmail">Email:</label>
+        <input type="email" id="loginEmail" placeholder="Enter your email" required>
+        <label for="loginPassword">Password:</label>
+        <input type="password" id="loginPassword" placeholder="Enter your password" required>
+        <button onclick="handleLogin()" style="margin-top:16px;">Login</button>
+        <p style="text-align:center;font-size:13px;margin-top:16px;color:#666;">
+            Don't have an account? <a href="#" onclick="switchTab('signup')" style="color:#2874f0;">Sign Up</a>
+        </p>
+    </div>
+
+    <!-- Signup Form -->
+    <div id="signupForm" style="display:none;">
+        <h2 style="text-align:center;margin-bottom:20px;">Create Account</h2>
+        <div id="signupError" style="display:none;background:#ffebee;color:#c62828;padding:10px;border-radius:6px;margin-bottom:12px;font-size:14px;"></div>
+        <label for="signupName">Full Name:</label>
+        <input type="text" id="signupName" placeholder="Enter your full name" required>
+        <label for="signupEmail">Email:</label>
+        <input type="email" id="signupEmail" placeholder="Enter your email" required>
+        <label for="signupPassword">Password:</label>
+        <input type="password" id="signupPassword" placeholder="At least 6 characters" required>
+        <button onclick="handleSignup()" style="margin-top:16px;">Create Account</button>
+        <p style="text-align:center;font-size:13px;margin-top:16px;color:#666;">
+            Already have an account? <a href="#" onclick="switchTab('login')" style="color:#2874f0;">Login</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(tab) {
+    document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+    document.getElementById('signupForm').style.display = tab === 'signup' ? 'block' : 'none';
+    document.getElementById('loginTab').style.cssText += tab === 'login'
+        ? 'color:#2874f0;border-bottom:3px solid #2874f0;font-weight:bold;'
+        : 'color:#666;border-bottom:none;font-weight:normal;';
+    document.getElementById('signupTab').style.cssText += tab === 'signup'
+        ? 'color:#2874f0;border-bottom:3px solid #2874f0;font-weight:bold;'
+        : 'color:#666;border-bottom:none;font-weight:normal;';
+}
+
+// Open to signup tab if URL says so
+{% if mode == 'signup' %}switchTab('signup');{% endif %}
+
+async function handleLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errEl = document.getElementById('loginError');
+    errEl.style.display = 'none';
+    if (!email || !password) { errEl.textContent = 'Please fill in all fields.'; errEl.style.display = 'block'; return; }
+    try {
+        const res = await fetch('/login', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email, password})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message);
+            setTimeout(() => window.location.href = '/', 800);
+        } else {
+            errEl.textContent = data.message;
+            errEl.style.display = 'block';
+        }
+    } catch(e) {
+        errEl.textContent = 'Network error. Please try again.';
+        errEl.style.display = 'block';
+    }
+}
+
+async function handleSignup() {
+    const name = document.getElementById('signupName').value.trim();
+    const email = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+    const errEl = document.getElementById('signupError');
+    errEl.style.display = 'none';
+    if (!name || !email || !password) { errEl.textContent = 'Please fill in all fields.'; errEl.style.display = 'block'; return; }
+    try {
+        const res = await fetch('/signup', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name, email, password})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message);
+            setTimeout(() => window.location.href = '/', 800);
+        } else {
+            errEl.textContent = data.message;
+            errEl.style.display = 'block';
+        }
+    } catch(e) {
+        errEl.textContent = 'Network error. Please try again.';
+        errEl.style.display = 'block';
+    }
+}
+
+// Allow Enter key on login
+document.addEventListener('keypress', e => {
+    if (e.key === 'Enter') {
+        if (document.getElementById('loginForm').style.display !== 'none') handleLogin();
+        else handleSignup();
+    }
+});
+</script>
+<style>
+.login-container input {
+    width: 100%;
+    padding: 10px;
+    margin: 6px 0 14px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+.login-container button {
+    width: 100%;
+    padding: 12px;
+    background-color: #2874f0;
+    color: white;
+    font-size: 15px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.login-container button:hover { background-color: #0f5ec7; }
+.login-container label { font-size: 13px; font-weight: 600; color: #444; }
+</style>
+{% endblock %}

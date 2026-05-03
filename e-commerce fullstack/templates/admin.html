@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard - Flipkart{% endblock %}
+
+{% block content %}
+<div style="max-width:1200px;margin:30px auto;padding:0 20px;">
+    <h2>⚙️ Admin Dashboard</h2>
+
+    <!-- Stats -->
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:30px;">
+        <div style="flex:1;min-width:160px;background:#2874f0;color:white;padding:20px;border-radius:10px;text-align:center;">
+            <div style="font-size:32px;font-weight:bold;" id="statUsers">–</div>
+            <div style="font-size:14px;opacity:0.9;">Total Users</div>
+        </div>
+        <div style="flex:1;min-width:160px;background:#4caf50;color:white;padding:20px;border-radius:10px;text-align:center;">
+            <div style="font-size:32px;font-weight:bold;" id="statProducts">–</div>
+            <div style="font-size:14px;opacity:0.9;">Products</div>
+        </div>
+        <div style="flex:1;min-width:160px;background:#ff9800;color:white;padding:20px;border-radius:10px;text-align:center;">
+            <div style="font-size:32px;font-weight:bold;" id="statOrders">–</div>
+            <div style="font-size:14px;opacity:0.9;">Orders</div>
+        </div>
+        <div style="flex:1;min-width:160px;background:#9c27b0;color:white;padding:20px;border-radius:10px;text-align:center;">
+            <div style="font-size:32px;font-weight:bold;" id="statRevenue">–</div>
+            <div style="font-size:14px;opacity:0.9;">Revenue</div>
+        </div>
+    </div>
+
+    <!-- Add Product -->
+    <div style="background:white;padding:24px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);margin-bottom:30px;">
+        <h3 style="margin:0 0 16px;">Add New Product</h3>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <input id="pName" placeholder="Product Name" style="flex:2;min-width:150px;padding:10px;border:1px solid #ddd;border-radius:6px;">
+            <input id="pCategory" placeholder="Category" style="flex:1;min-width:120px;padding:10px;border:1px solid #ddd;border-radius:6px;">
+            <input id="pPrice" type="number" placeholder="Price (₹)" style="flex:1;min-width:100px;padding:10px;border:1px solid #ddd;border-radius:6px;">
+            <input id="pImage" placeholder="Image filename" style="flex:1;min-width:150px;padding:10px;border:1px solid #ddd;border-radius:6px;">
+            <input id="pDesc" placeholder="Description" style="flex:2;min-width:200px;padding:10px;border:1px solid #ddd;border-radius:6px;">
+            <button onclick="addProduct()" style="background:#2874f0;color:white;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-size:14px;">+ Add Product</button>
+        </div>
+    </div>
+
+    <!-- Recent Orders -->
+    <div style="background:white;padding:24px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        <h3 style="margin:0 0 16px;">Recent Orders</h3>
+        <div id="adminOrders" style="overflow-x:auto;">Loading...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadStats() {
+    const res = await fetch('/admin/stats');
+    if (res.status === 403) { window.location.href = '/'; return; }
+    const d = await res.json();
+    document.getElementById('statUsers').textContent = d.total_users;
+    document.getElementById('statProducts').textContent = d.total_products;
+    document.getElementById('statOrders').textContent = d.total_orders;
+    document.getElementById('statRevenue').textContent = `₹${Number(d.revenue).toLocaleString('en-IN')}`;
+}
+
+async function loadOrders() {
+    const res = await fetch('/admin/orders');
+    const orders = await res.json();
+    const table = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:#f5f5f5;">
+            <th style="padding:10px;text-align:left;">Order ID</th>
+            <th>Customer</th><th>Amount</th><th>Status</th><th>Date</th>
+        </tr></thead>
+        <tbody>${orders.map(o => `<tr style="border-bottom:1px solid #eee;">
+            <td style="padding:10px;">#${o.id}</td>
+            <td>${o.user_name}<br><span style="color:#999;font-size:11px;">${o.user_email}</span></td>
+            <td>₹${Number(o.total_price).toLocaleString('en-IN')}</td>
+            <td><span style="padding:3px 8px;border-radius:12px;font-size:11px;background:#e3f2fd;color:#1565c0;">${o.status}</span></td>
+            <td>${o.created_at}</td>
+        </tr>`).join('')}</tbody></table>`;
+    document.getElementById('adminOrders').innerHTML = table;
+}
+
+async function addProduct() {
+    const body = {
+        name: document.getElementById('pName').value.trim(),
+        category: document.getElementById('pCategory').value.trim(),
+        price: parseFloat(document.getElementById('pPrice').value),
+        image: document.getElementById('pImage').value.trim(),
+        description: document.getElementById('pDesc').value.trim()
+    };
+    if (!body.name || !body.category || !body.price) { showToast('Name, category and price are required'); return; }
+    const res = await fetch('/admin/products', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (data.success) { showToast('Product added!'); loadStats(); ['pName','pCategory','pPrice','pImage','pDesc'].forEach(id => document.getElementById(id).value = ''); }
+    else showToast(data.error || 'Failed to add product');
+}
+
+loadStats();
+loadOrders();
+</script>
+{% endblock %}

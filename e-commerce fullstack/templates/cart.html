@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}My Cart - Flipkart{% endblock %}
+
+{% block content %}
+<div style="max-width:900px;margin:30px auto;padding:0 20px;">
+    <h2>🛒 My Cart</h2>
+    <div id="cartLoading" style="text-align:center;padding:60px;color:#666;">Loading cart...</div>
+    <div id="cartContent" style="display:none;">
+        <div id="cartContainer"></div>
+
+        <div id="cartSummary" style="background:white;border-radius:12px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,0.08);margin-top:16px;">
+            <h3 style="margin:0 0 16px;font-size:18px;">Price Details</h3>
+            <div style="display:flex;justify-content:space-between;margin-bottom:10px;font-size:15px;">
+                <span>Subtotal</span><span id="subtotal">₹0</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:10px;font-size:15px;">
+                <span>Delivery Charges</span><span style="color:#4caf50;">FREE</span>
+            </div>
+            <hr style="border:none;border-top:1px solid #eee;margin:12px 0;">
+            <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:bold;">
+                <span>Total Amount</span><span id="totalAmount">₹0</span>
+            </div>
+            <button class="checkout-button" onclick="proceedToCheckout()" style="width:100%;margin-top:20px;">
+                Proceed to Checkout →
+            </button>
+        </div>
+    </div>
+
+    <div id="emptyCart" style="display:none;text-align:center;padding:80px 20px;">
+        <div style="font-size:60px;margin-bottom:16px;">🛒</div>
+        <h3 style="color:#666;margin-bottom:8px;">Your cart is empty!</h3>
+        <p style="color:#999;margin-bottom:20px;">Add some products to get started.</p>
+        <a href="/categories" style="background:#2874f0;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;">Start Shopping</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let cartItems = [];
+
+async function loadCart() {
+    document.getElementById('cartLoading').style.display = 'block';
+    const res = await fetch('/api/cart');
+    if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+    }
+    const data = await res.json();
+    cartItems = data.items || [];
+    document.getElementById('cartLoading').style.display = 'none';
+
+    if (cartItems.length === 0) {
+        document.getElementById('emptyCart').style.display = 'block';
+        return;
+    }
+
+    document.getElementById('cartContent').style.display = 'block';
+    renderCart(data);
+}
+
+function renderCart(data) {
+    const container = document.getElementById('cartContainer');
+    container.innerHTML = cartItems.map(item => `
+        <div class="cart-item" id="item-${item.product_id}">
+            <div style="display:flex;gap:16px;align-items:flex-start;">
+                <img src="/static/images/${item.image}" alt="${item.name}"
+                     onerror="this.src='https://via.placeholder.com/80x80?text=Product'"
+                     style="width:90px;height:90px;object-fit:cover;border-radius:8px;flex-shrink:0;">
+                <div style="flex:1;">
+                    <h3 style="margin:0 0 4px;font-size:16px;">${item.name}</h3>
+                    <p style="color:#999;font-size:12px;margin:0 0 8px;">${item.category}</p>
+                    <p style="color:#2874f0;font-weight:bold;font-size:15px;margin:0 0 12px;">₹${Number(item.price).toLocaleString('en-IN')} each</p>
+                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <div class="cart-controls" style="display:flex;align-items:center;gap:8px;">
+                            <button onclick="updateQty(${item.product_id}, ${item.quantity - 1})">−</button>
+                            <span style="font-weight:bold;min-width:24px;text-align:center;">${item.quantity}</span>
+                            <button onclick="updateQty(${item.product_id}, ${item.quantity + 1})">+</button>
+                        </div>
+                        <span style="font-weight:bold;color:#333;">= ₹${(Number(item.price) * item.quantity).toLocaleString('en-IN')}</span>
+                        <button onclick="removeItem(${item.product_id})"
+                            style="background:#f44336;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:13px;">
+                            Remove
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    const total = cartItems.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
+    document.getElementById('subtotal').textContent = `₹${total.toLocaleString('en-IN')}`;
+    document.getElementById('totalAmount').textContent = `₹${total.toLocaleString('en-IN')}`;
+}
+
+async function updateQty(productId, newQty) {
+    if (newQty < 1) { removeItem(productId); return; }
+    await fetch('/api/cart/update', { method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({product_id: productId, quantity: newQty}) });
+    const item = cartItems.find(i => i.product_id === productId);
+    if (item) item.quantity = newQty;
+    renderCart({});
+    updateCartBadge();
+}
+
+async function removeItem(productId) {
+    await fetch('/api/cart/remove', { method:'DELETE', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({product_id: productId}) });
+    cartItems = cartItems.filter(i => i.product_id !== productId);
+    if (cartItems.length === 0) {
+        document.getElementById('cartContent').style.display = 'none';
+        document.getElementById('emptyCart').style.display = 'block';
+    } else {
+        renderCart({});
+    }
+    updateCartBadge();
+    showToast('Item removed from cart');
+}
+
+function proceedToCheckout() {
+    if (cartItems.length === 0) { showToast('Your cart is empty!'); return; }
+    window.location.href = '/payment';
+}
+
+loadCart();
+</script>
+{% endblock %}

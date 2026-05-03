@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}My Wishlist - Flipkart{% endblock %}
+
+{% block content %}
+<div style="max-width:1200px;margin:30px auto;padding:0 20px;">
+    <h1 style="margin-bottom:20px;">❤️ My Wishlist</h1>
+    <div id="loading" style="text-align:center;padding:60px;color:#666;">Loading wishlist...</div>
+    <div class="wishlist-container" id="wishlistContainer" style="display:none;"></div>
+    <div id="emptyWishlist" style="display:none;text-align:center;padding:80px;">
+        <div style="font-size:60px;margin-bottom:16px;">❤️</div>
+        <h3 style="color:#666;">Your wishlist is empty</h3>
+        <p style="color:#999;margin-bottom:20px;">Save items you love to your wishlist!</p>
+        <a href="/categories" style="background:#2874f0;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;">Browse Products</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadWishlist() {
+    const res = await fetch('/api/wishlist');
+    if (res.status === 401) { window.location.href = '/login'; return; }
+    const items = await res.json();
+    document.getElementById('loading').style.display = 'none';
+
+    if (items.length === 0) {
+        document.getElementById('emptyWishlist').style.display = 'block';
+        return;
+    }
+
+    document.getElementById('wishlistContainer').style.display = 'flex';
+    document.getElementById('wishlistContainer').innerHTML = items.map(item => `
+        <div class="wishlist-card" id="wishlist-${item.product_id}">
+            <img src="/static/images/${item.image}" alt="${item.name}"
+                 onerror="this.src='https://via.placeholder.com/150x150?text=Product'"
+                 style="width:100%;height:160px;object-fit:cover;border-radius:8px;margin-bottom:10px;">
+            <h3 style="font-size:14px;margin:0 0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.name}</h3>
+            <p style="color:#2874f0;font-weight:bold;margin:0 0 4px;">₹${Number(item.price).toLocaleString('en-IN')}</p>
+            <p style="font-size:12px;color:#999;margin:0 0 12px;">${item.category}</p>
+            <button class="add-to-cart" onclick="moveToCart(${item.product_id}, '${item.name.replace(/'/g,"\\'")}')">Add to Cart</button>
+            <button class="remove" onclick="removeWishlist(${item.product_id})">Remove</button>
+        </div>
+    `).join('');
+}
+
+async function moveToCart(productId, name) {
+    const res = await fetch('/api/cart/add', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({product_id: productId, quantity: 1}) });
+    const data = await res.json();
+    showToast(data.message || data.error);
+    updateCartBadge();
+}
+
+async function removeWishlist(productId) {
+    await fetch('/api/wishlist/remove', { method:'DELETE', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({product_id: productId}) });
+    const el = document.getElementById(`wishlist-${productId}`);
+    if (el) el.remove();
+    updateWishlistBadge();
+    showToast('Removed from wishlist');
+    if (!document.querySelector('.wishlist-card')) {
+        document.getElementById('wishlistContainer').style.display = 'none';
+        document.getElementById('emptyWishlist').style.display = 'block';
+    }
+}
+
+loadWishlist();
+</script>
+{% endblock %}

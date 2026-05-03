@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}My Orders - Flipkart{% endblock %}
+
+{% block content %}
+<div style="max-width:900px;margin:30px auto;padding:0 20px;">
+    <h2>📦 My Orders</h2>
+    <div id="loading" style="text-align:center;padding:60px;color:#666;">Loading orders...</div>
+    <div id="ordersContainer"></div>
+    <div id="emptyOrders" style="display:none;text-align:center;padding:80px;">
+        <div style="font-size:60px;margin-bottom:16px;">📦</div>
+        <h3 style="color:#666;">No orders yet</h3>
+        <p style="color:#999;margin-bottom:20px;">Your orders will appear here after you shop!</p>
+        <a href="/categories" style="background:#2874f0;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;">Start Shopping</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const STATUS_COLORS = { pending:'#ff9800', confirmed:'#2196f3', shipped:'#9c27b0', delivered:'#4caf50', cancelled:'#f44336' };
+const STATUS_ICONS  = { pending:'⏳', confirmed:'✅', shipped:'🚚', delivered:'🎉', cancelled:'❌' };
+
+async function loadOrders() {
+    const res = await fetch('/api/orders');
+    if (res.status === 401) { window.location.href = '/login'; return; }
+    const orders = await res.json();
+    document.getElementById('loading').style.display = 'none';
+
+    if (orders.length === 0) { document.getElementById('emptyOrders').style.display = 'block'; return; }
+
+    document.getElementById('ordersContainer').innerHTML = orders.map(order => `
+        <div style="background:white;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+                <div>
+                    <p style="margin:0 0 4px;font-size:13px;color:#999;">Order #${order.id} &bull; ${order.created_at}</p>
+                    <p style="margin:0;font-size:13px;color:#666;">Payment: ${order.payment_method?.toUpperCase() || 'N/A'}</p>
+                </div>
+                <div style="text-align:right;">
+                    <span style="background:${STATUS_COLORS[order.status] || '#999'};color:white;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:bold;">
+                        ${STATUS_ICONS[order.status]} ${order.status?.toUpperCase()}
+                    </span>
+                    <p style="margin:6px 0 0;font-weight:bold;font-size:16px;">₹${Number(order.total_price).toLocaleString('en-IN')}</p>
+                </div>
+            </div>
+            <hr style="border:none;border-top:1px solid #eee;margin:12px 0;">
+            <div style="font-size:13px;color:#555;">
+                ${order.items.map(i => `
+                    <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                        <span>${i.product_name} × ${i.quantity}</span>
+                        <span>₹${(Number(i.price) * i.quantity).toLocaleString('en-IN')}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+loadOrders();
+</script>
+{% endblock %}

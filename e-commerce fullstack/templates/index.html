@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Flipkart Clone - Shop Online{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div class="hero-content">
+        <h1 style="color:white;font-size:2.5rem;margin-bottom:10px;text-shadow:0 2px 8px rgba(0,0,0,0.5);">Millions of Products</h1>
+        <p style="color:white;font-size:1.1rem;margin-bottom:20px;text-shadow:0 1px 4px rgba(0,0,0,0.5);">Shop Electronics, Fashion, Home & more</p>
+        <a href="/categories" class="shop-btn">Shop Now →</a>
+    </div>
+</section>
+
+<section class="section-container">
+    <h2>🌟 New Arrivals</h2>
+    <div class="horizontal-scroll" id="newArrivals">
+        <div style="text-align:center;padding:40px;color:#666;">Loading products...</div>
+    </div>
+</section>
+
+<section class="section-container">
+    <h2>✨ Featured Categories</h2>
+    <div class="horizontal-scroll">
+        <div class="feature-card" onclick="window.location.href='/categories?cat=Womenswear'" style="cursor:pointer;">
+            <img src="{{ url_for('static', filename='images/fashion.jpg') }}" alt="For Her" width="230">
+            <h4>Fashion For Her</h4>
+        </div>
+        <div class="feature-card" onclick="window.location.href='/categories?cat=Menswear'" style="cursor:pointer;">
+            <img src="{{ url_for('static', filename='images/style.webp') }}" alt="For Him" width="270">
+            <h4>Style For Him</h4>
+        </div>
+        <div class="feature-card" onclick="window.location.href='/categories?cat=Electronics'" style="cursor:pointer;">
+            <img src="{{ url_for('static', filename='images/electronics.jpeg') }}" alt="Electronics" width="230">
+            <h4>Electronics</h4>
+        </div>
+        <div class="feature-card" onclick="window.location.href='/categories?cat=Home+Appliances'" style="cursor:pointer;">
+            <img src="{{ url_for('static', filename='images/oven.jpeg') }}" alt="Home" width="230">
+            <h4>Home Appliances</h4>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadNewArrivals() {
+    const container = document.getElementById('newArrivals');
+    const res = await fetch('/api/products?category=Electronics');
+    const products = await res.json();
+    const featured = products.slice(0, 6);
+    container.innerHTML = featured.map(p => `
+        <div class="product-card" style="min-width:220px;">
+            <div style="position:relative;width:150px;height:150px;margin:0 auto 10px;">
+                <img src="/static/images/${p.image}" alt="${p.name}" class="product-image"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div style="display:none;width:150px;height:150px;background:#f5f5f5;border-radius:6px;align-items:center;justify-content:center;color:#ccc;font-size:12px;margin-bottom:10px;">
+                    <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                </div>
+            </div>
+            <h3>${p.name}</h3>
+            <p>₹${Number(p.price).toLocaleString('en-IN')}</p>
+            <div class="cart-controls">
+                <button onclick="addToCart(${p.id}, '${p.name.replace(/'/g,"\\'")}')">Add to Cart</button>
+                <button onclick="addToWishlist(${p.id}, '${p.name.replace(/'/g,"\\'")}')">♡</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function addToCart(productId, name) {
+    if (!currentUser) { showToast('Please login to add to cart'); setTimeout(() => window.location.href='/login', 1200); return; }
+    const res = await fetch('/api/cart/add', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({product_id: productId, quantity: 1}) });
+    const data = await res.json();
+    showToast(data.message || data.error);
+    updateCartBadge();
+}
+
+async function addToWishlist(productId, name) {
+    if (!currentUser) { showToast('Please login to add to wishlist'); setTimeout(() => window.location.href='/login', 1200); return; }
+    const res = await fetch('/api/wishlist/add', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({product_id: productId}) });
+    const data = await res.json();
+    showToast(data.message || data.error);
+    updateWishlistBadge();
+}
+
+loadNewArrivals();
+</script>
+<style>
+.feature-card { text-align:center; }
+.feature-card img { border-radius:8px; object-fit:cover; height:180px; }
+.feature-card h4 { margin-top:8px; }
+.feature-card:hover img { transform:scale(1.03); transition:transform 0.2s; }
+</style>
+{% endblock %}
